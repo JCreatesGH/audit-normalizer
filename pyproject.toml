@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "auditnorm"
+version = "0.1.0"
+description = "Normalize audit logs from ServiceNow, AWS CloudTrail, Okta, and Splunk into one common schema."
+readme = "README.md"
+authors = [{ name = "Joshua John", email = "josh202@gmail.com" }]
+requires-python = ">=3.8"
+license = { text = "MIT" }
+keywords = ["audit", "siem", "normalization", "ocsf", "cloudtrail", "compliance"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

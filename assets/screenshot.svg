@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="400" viewBox="0 0 800 400" font-family="SFMono-Regular,Consolas,Menlo,monospace">
+  <rect width="800" height="400" rx="10" fill="#0d1117"/>
+  <text x="24" y="36" font-size="18" font-weight="700" fill="#e6edf3" font-family="system-ui,sans-serif">audit-normalizer</text>
+  <text x="230" y="36" font-size="13" fill="#7d8590" font-family="system-ui,sans-serif">4 vendors → 1 schema</text>
+  <!-- sources -->
+  <g font-size="10.5">
+    <rect x="20" y="58" width="180" height="84" rx="8" fill="#161b22" stroke="#30363d"/>
+    <text x="32" y="78" fill="#58a6ff">ServiceNow sys_audit</text>
+    <text x="32" y="98" fill="#9aa4b2">operation: "insert"</text>
+    <text x="32" y="114" fill="#9aa4b2">tablename: "incident"</text>
+    <text x="32" y="130" fill="#9aa4b2">sys_created_by: "admin"</text>
+    <rect x="210" y="58" width="180" height="84" rx="8" fill="#161b22" stroke="#30363d"/>
+    <text x="222" y="78" fill="#f0883e">AWS CloudTrail</text>
+    <text x="222" y="98" fill="#9aa4b2">eventName: "DeleteBucket"</text>
+    <text x="222" y="114" fill="#9aa4b2">errorCode: "AccessDenied"</text>
+    <text x="222" y="130" fill="#9aa4b2">sourceIPAddress: 1.2.3.4</text>
+    <rect x="400" y="58" width="180" height="84" rx="8" fill="#161b22" stroke="#30363d"/>
+    <text x="412" y="78" fill="#3fb950">Okta system log</text>
+    <text x="412" y="98" fill="#9aa4b2">eventType:</text>
+    <text x="412" y="114" fill="#9aa4b2">  user.session.start</text>
+    <text x="412" y="130" fill="#9aa4b2">outcome.result: SUCCESS</text>
+    <rect x="590" y="58" width="190" height="84" rx="8" fill="#161b22" stroke="#30363d"/>
+    <text x="602" y="78" fill="#a371f7">Splunk CIM</text>
+    <text x="602" y="98" fill="#9aa4b2">action: "modify"</text>
+    <text x="602" y="114" fill="#9aa4b2">object: "policy-7"</text>
+    <text x="602" y="130" fill="#9aa4b2">src_ip: 8.8.8.8</text>
+  </g>
+  <text x="400" y="166" font-size="16" fill="#7d8590" text-anchor="middle">↓ normalize()</text>
+  <!-- unified table -->
+  <rect x="20" y="178" width="760" height="180" rx="8" fill="#11151c" stroke="#30363d"/>
+  <text font-size="11" xml:space="preserve">
+    <tspan x="34" y="202" fill="#7d8590">timestamp            actor            action   resource           outcome  src_ip</tspan>
+    <tspan x="34" y="226" fill="#c9d1d9">10:00:00  servicenow admin       </tspan><tspan fill="#3fb950">create</tspan><tspan fill="#c9d1d9">   incident:abc       success</tspan>
+    <tspan x="34" y="248" fill="#c9d1d9">10:01:00  aws        …user/bob   </tspan><tspan fill="#f85149">delete</tspan><tspan fill="#c9d1d9">   s3:DeleteBucket    failure  1.2.3.4</tspan>
+    <tspan x="34" y="270" fill="#c9d1d9">10:02:00  okta       bob@acme    </tspan><tspan fill="#58a6ff">login</tspan><tspan fill="#c9d1d9">    session start      success  9.9.9.9</tspan>
+    <tspan x="34" y="292" fill="#c9d1d9">10:03:00  splunk     carol       </tspan><tspan fill="#d29922">update</tspan><tspan fill="#c9d1d9">   policy-7           success  8.8.8.8</tspan>
+    <tspan x="34" y="324" fill="#7d8590"># verbs normalized: insert/post→create · modify/put→update · session.start→login</tspan>
+    <tspan x="34" y="344" fill="#7d8590"># one schema → search, correlate &amp; report across every system</tspan>
+  </text>
+  <text x="20" y="388" font-size="12" fill="#3fb950" font-family="system-ui,sans-serif">✓ 6 tests · OCSF/ECS-flavored schema · pluggable adapters · JSON-serializable</text>
+</svg>
