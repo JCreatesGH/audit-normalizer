@@ -44,3 +44,21 @@ _ACTION_MAP = {
 
 def normalize_action(raw: str) -> str:
     return _ACTION_MAP.get(str(raw).strip().lower(), str(raw).strip().lower() or "unknown")
+
+
+# map many vendor outcome/status values to success | failure | unknown
+_OUTCOME_MAP = {
+    "success": "success", "succeeded": "success", "ok": "success", "allow": "success",
+    "allowed": "success", "pass": "success", "passed": "success", "200": "success",
+    "true": "success", "granted": "success",
+    "failure": "failure", "failed": "failure", "fail": "failure", "error": "failure",
+    "denied": "failure", "deny": "failure", "blocked": "failure", "false": "failure",
+    "401": "failure", "403": "failure", "500": "failure",
+}
+
+
+def normalize_outcome(v: Any) -> str:
+    s = str(v).strip().lower()
+    if not s:
+        return "unknown"
+    return _OUTCOME_MAP.get(s, "unknown")

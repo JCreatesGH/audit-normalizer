@@ -12,6 +12,12 @@ requires-python = ">=3.8"
 license = { text = "MIT" }
 keywords = ["audit", "siem", "normalization", "ocsf", "cloudtrail", "compliance"]
 
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[project.scripts]
+auditnorm = "auditnorm.cli:main"
+
 [tool.setuptools.packages.find]
 where = ["src"]
 

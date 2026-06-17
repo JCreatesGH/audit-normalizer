@@ -1,7 +1,7 @@
 """Per-source adapters into AuditEvent."""
 from __future__ import annotations
 from typing import Any, Callable, Dict, List
-from .schema import AuditEvent, parse_ts, normalize_action
+from .schema import AuditEvent, parse_ts, normalize_action, normalize_outcome
 
 
 def from_servicenow(r: Dict[str, Any]) -> AuditEvent:
@@ -32,7 +32,6 @@ def from_cloudtrail(r: Dict[str, Any]) -> AuditEvent:
 
 def from_okta(r: Dict[str, Any]) -> AuditEvent:
     actor = (r.get("actor") or {}).get("alternateId") or (r.get("actor") or {}).get("displayName", "unknown")
-    outcome = (r.get("outcome") or {}).get("result", "").lower()
     client_ip = ((r.get("client") or {}).get("ipAddress"))
     return AuditEvent(
         timestamp=parse_ts(r.get("published")),
@@ -40,7 +39,7 @@ def from_okta(r: Dict[str, Any]) -> AuditEvent:
         actor=actor,
         action=normalize_action(r.get("eventType", "")),
         resource=r.get("displayMessage", r.get("eventType", "")),
-        outcome="success" if outcome == "success" else ("failure" if outcome else "unknown"),
+        outcome=normalize_outcome((r.get("outcome") or {}).get("result", "")),
         source_ip=client_ip,
         raw_action=str(r.get("eventType", "")),
     )
@@ -53,7 +52,7 @@ def from_splunk(r: Dict[str, Any]) -> AuditEvent:
         actor=r.get("user", "unknown"),
         action=normalize_action(r.get("action", "")),
         resource=r.get("object", r.get("dest", "")),
-        outcome=(r.get("status") or r.get("result") or "unknown").lower(),
+        outcome=normalize_outcome(r.get("status") or r.get("result") or ""),
         source_ip=r.get("src_ip") or r.get("src"),
         raw_action=str(r.get("action", "")),
     )
@@ -70,3 +69,13 @@ def normalize(records: List[Dict[str, Any]], source: str) -> List[AuditEvent]:
         raise ValueError(f"unknown source '{source}'; choose {list(ADAPTERS)}")
     adapter = ADAPTERS[source]
     return sorted((adapter(r) for r in records), key=lambda e: e.timestamp)
+
+
+def normalize_all(sources: Dict[str, List[Dict[str, Any]]]) -> List[AuditEvent]:
+    """Normalize records from several sources at once and merge them into a single
+    timeline. `sources` maps source name -> its raw records, e.g.
+    {"aws": [...], "okta": [...]}."""
+    events: List[AuditEvent] = []
+    for source, records in sources.items():
+        events.extend(normalize(records, source))
+    return sorted(events, key=lambda e: e.timestamp)
