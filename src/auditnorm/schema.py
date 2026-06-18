@@ -35,7 +35,7 @@ def parse_ts(v: Any) -> datetime:
 _ACTION_MAP = {
     "insert": "create", "create": "create", "post": "create",
     "update": "update", "patch": "update", "put": "update", "modify": "update",
-    "delete": "delete", "remove": "delete",
+    "delete": "delete", "remove": "delete", "destroy": "delete",
     "read": "read", "get": "read", "view": "read", "list": "read",
     "login": "login", "logout": "logout", "authenticate": "login",
     "user.session.start": "login", "user.session.end": "logout",

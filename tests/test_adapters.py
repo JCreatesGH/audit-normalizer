@@ -1,4 +1,5 @@
 from auditnorm import (from_servicenow, from_cloudtrail, from_okta, from_splunk,
+                       from_gcp, from_azure, from_github, detect_source, normalize_auto,
                        normalize, normalize_all, normalize_outcome)
 from auditnorm.cli import main
 
@@ -101,3 +102,70 @@ def test_cli_requires_source_or_all(tmp_path, capsys):
     f.write_text("[]")
     assert main([str(f)]) == 2
     assert "--source" in capsys.readouterr().err
+
+
+def test_gcp_mapping():
+    ev = from_gcp({"timestamp": "2026-06-01T10:00:00Z", "protoPayload": {
+        "authenticationInfo": {"principalEmail": "svc@proj.iam"},
+        "methodName": "storage.buckets.delete", "resourceName": "projects/_/buckets/x",
+        "status": {"code": 7, "message": "PERMISSION_DENIED"},
+        "requestMetadata": {"callerIp": "1.1.1.1"}}})
+    assert ev.source_system == "gcp" and ev.actor == "svc@proj.iam"
+    assert ev.action == "delete" and ev.outcome == "failure" and ev.source_ip == "1.1.1.1"
+    ok = from_gcp({"timestamp": "2026-06-01T10:00:00Z",
+                   "protoPayload": {"methodName": "storage.buckets.get", "status": {}}})
+    assert ok.outcome == "success" and ok.action == "read"   # no status.code => success
+
+
+def test_azure_mapping():
+    ev = from_azure({"eventTimestamp": "2026-06-01T10:00:00Z", "caller": "alice@x",
+                     "operationName": {"value": "Microsoft.Compute/virtualMachines/delete"},
+                     "status": {"value": "Succeeded"}, "callerIpAddress": "2.2.2.2",
+                     "resourceId": "/subs/s/vmX"})
+    assert ev.source_system == "azure" and ev.actor == "alice@x"
+    assert ev.action == "delete" and ev.outcome == "success" and ev.source_ip == "2.2.2.2"
+
+
+def test_github_mapping_ms_epoch():
+    ev = from_github({"action": "repo.destroy", "actor": "bob",
+                      "@timestamp": 1717236000000, "repo": "acme/app", "actor_ip": "3.3.3.3"})
+    assert ev.source_system == "github" and ev.actor == "bob"
+    assert ev.action == "delete"                 # destroy -> delete
+    assert ev.resource == "acme/app" and ev.source_ip == "3.3.3.3"
+    assert ev.timestamp.year == 2024             # 1717236000000 ms -> 2024-06-01 (not the year 56000)
+
+
+def test_detect_source():
+    assert detect_source({"protoPayload": {}}) == "gcp"
+    assert detect_source({"operationName": {"value": "x"}, "eventTimestamp": "t"}) == "azure"
+    assert detect_source({"eventName": "x", "eventSource": "y"}) == "aws"
+    assert detect_source({"eventType": "x", "published": "t"}) == "okta"
+    assert detect_source({"sys_created_on": "t"}) == "servicenow"
+    assert detect_source({"action": "repo.create", "actor": "a", "@timestamp": 1}) == "github"
+    assert detect_source({"_time": "t", "action": "login", "user": "u"}) == "splunk"
+    assert detect_source({"foo": "bar"}) is None
+
+
+def test_normalize_auto_mixed_and_unknown():
+    import pytest
+    recs = [
+        {"protoPayload": {"methodName": "x.get", "status": {}}, "timestamp": "2026-06-01T10:05:00Z"},
+        {"eventType": "user.session.start", "published": "2026-06-01T10:00:00Z",
+         "actor": {"alternateId": "b@x"}, "outcome": {"result": "SUCCESS"}},
+    ]
+    evs = normalize_auto(recs)
+    assert [e.source_system for e in evs] == ["okta", "gcp"]   # sorted by time across sources
+    with pytest.raises(ValueError):
+        normalize_auto([{"foo": "bar"}])
+
+
+def test_cli_auto(tmp_path, capsys):
+    import json
+    f = tmp_path / "mixed.json"
+    f.write_text(json.dumps([
+        {"action": "repo.create", "actor": "bob", "@timestamp": 1717236000000, "repo": "acme/app"},
+        {"_time": "2026-06-01T09:00:00Z", "user": "c", "action": "login", "status": "success"},
+    ]))
+    assert main([str(f), "--auto"]) == 0
+    rows = json.loads(capsys.readouterr().out)
+    assert {r["source_system"] for r in rows} == {"github", "splunk"}

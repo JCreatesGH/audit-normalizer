@@ -1,8 +1,10 @@
 """auditnorm: normalize audit logs from many systems into one common schema."""
 from .schema import AuditEvent, normalize_action, normalize_outcome
 from .adapters import (from_servicenow, from_cloudtrail, from_okta, from_splunk,
-                       normalize, normalize_all, ADAPTERS)
+                       from_gcp, from_azure, from_github,
+                       normalize, normalize_all, normalize_auto, detect_source, ADAPTERS)
 __all__ = ["AuditEvent", "normalize_action", "normalize_outcome",
            "from_servicenow", "from_cloudtrail", "from_okta", "from_splunk",
-           "normalize", "normalize_all", "ADAPTERS"]
-__version__ = "0.1.0"
+           "from_gcp", "from_azure", "from_github",
+           "normalize", "normalize_all", "normalize_auto", "detect_source", "ADAPTERS"]
+__version__ = "0.2.0"

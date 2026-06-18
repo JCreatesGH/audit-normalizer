@@ -5,7 +5,7 @@ import json
 import sys
 from typing import List, Optional
 
-from .adapters import normalize, normalize_all, ADAPTERS
+from .adapters import normalize, normalize_all, normalize_auto, ADAPTERS
 
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -16,11 +16,13 @@ def main(argv: Optional[List[str]] = None) -> int:
                         help="source of a flat list of records")
     parser.add_argument("--all", action="store_true",
                         help="input is an object mapping source -> [records]; merge all")
+    parser.add_argument("--auto", action="store_true",
+                        help="input is a flat list of mixed records; auto-detect each one's source")
     parser.add_argument("--ndjson", action="store_true", help="emit one JSON object per line")
     args = parser.parse_args(argv)
 
-    if not args.all and not args.source:
-        print("error: provide --source <name> or --all", file=sys.stderr)
+    if not args.all and not args.source and not args.auto:
+        print("error: provide --source <name>, --all, or --auto", file=sys.stderr)
         return 2
 
     raw = open(args.file, encoding="utf-8").read() if args.file else sys.stdin.read()
@@ -31,7 +33,12 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 2
 
     try:
-        events = normalize_all(data) if args.all else normalize(data, args.source)
+        if args.all:
+            events = normalize_all(data)
+        elif args.auto:
+            events = normalize_auto(data)
+        else:
+            events = normalize(data, args.source)
     except (ValueError, AttributeError, TypeError) as e:
         print(f"error: {e}", file=sys.stderr)
         return 2
