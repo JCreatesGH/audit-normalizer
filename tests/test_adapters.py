@@ -1,5 +1,6 @@
 from auditnorm import (from_servicenow, from_cloudtrail, from_okta, from_splunk,
-                       from_gcp, from_azure, from_github, detect_source, normalize_auto,
+                       from_gcp, from_azure, from_github, from_kubernetes, from_m365,
+                       from_cloudflare, detect_source, normalize_auto,
                        normalize, normalize_all, normalize_outcome)
 from auditnorm.cli import main
 
@@ -135,6 +136,41 @@ def test_github_mapping_ms_epoch():
     assert ev.timestamp.year == 2024             # 1717236000000 ms -> 2024-06-01 (not the year 56000)
 
 
+def test_kubernetes_mapping():
+    ev = from_kubernetes({
+        "requestReceivedTimestamp": "2026-06-01T10:00:00Z",
+        "verb": "delete", "user": {"username": "system:serviceaccount:ci"},
+        "objectRef": {"namespace": "prod", "resource": "pods", "name": "web-1"},
+        "responseStatus": {"code": 403}, "sourceIPs": ["10.0.0.5"],
+    })
+    assert ev.source_system == "kubernetes"
+    assert ev.actor == "system:serviceaccount:ci"
+    assert ev.action == "delete" and ev.resource == "prod/pods/web-1"
+    assert ev.outcome == "failure" and ev.source_ip == "10.0.0.5"   # 403 -> failure
+
+
+def test_m365_mapping():
+    ev = from_m365({"CreationTime": "2026-06-01T10:00:00Z", "UserId": "bob@acme.com",
+                    "Operation": "FileDeleted", "ObjectId": "/sites/hr/doc.docx",
+                    "ResultStatus": "Success", "ClientIP": "8.8.8.8"})
+    assert ev.source_system == "m365" and ev.actor == "bob@acme.com"
+    assert ev.outcome == "success" and ev.source_ip == "8.8.8.8"
+    assert ev.resource == "/sites/hr/doc.docx" and ev.raw_action == "FileDeleted"
+
+
+def test_cloudflare_mapping_and_result_flag():
+    ok = from_cloudflare({"when": "2026-06-01T10:00:00Z",
+                          "actor": {"email": "admin@acme.com", "ip": "9.9.9.9"},
+                          "action": {"type": "update", "result": True},
+                          "resource": {"type": "firewall_rule", "id": "r1"}})
+    assert ok.source_system == "cloudflare" and ok.actor == "admin@acme.com"
+    assert ok.action == "update" and ok.resource == "firewall_rule:r1"
+    assert ok.outcome == "success" and ok.source_ip == "9.9.9.9"
+    bad = from_cloudflare({"when": "2026-06-01T10:00:00Z", "actor": {"email": "a@b"},
+                           "action": {"type": "delete", "result": False}, "resource": {"type": "zone"}})
+    assert bad.outcome == "failure"
+
+
 def test_detect_source():
     assert detect_source({"protoPayload": {}}) == "gcp"
     assert detect_source({"operationName": {"value": "x"}, "eventTimestamp": "t"}) == "azure"
@@ -143,6 +179,10 @@ def test_detect_source():
     assert detect_source({"sys_created_on": "t"}) == "servicenow"
     assert detect_source({"action": "repo.create", "actor": "a", "@timestamp": 1}) == "github"
     assert detect_source({"_time": "t", "action": "login", "user": "u"}) == "splunk"
+    # new sources
+    assert detect_source({"CreationTime": "t", "Operation": "FileAccessed"}) == "m365"
+    assert detect_source({"requestReceivedTimestamp": "t", "verb": "get", "objectRef": {}}) == "kubernetes"
+    assert detect_source({"when": "t", "actor": {"email": "a"}, "action": {"type": "create"}}) == "cloudflare"
     assert detect_source({"foo": "bar"}) is None
 
 

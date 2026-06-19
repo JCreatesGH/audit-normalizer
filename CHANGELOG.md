@@ -3,6 +3,16 @@
 All notable changes are documented here, following
 [Keep a Changelog](https://keepachangelog.com/) and [SemVer](https://semver.org/).
 
+## [0.3.0]
+
+### Added
+- **Three new source adapters** (7 → 10): `from_kubernetes` (audit.k8s.io — `verb`/`objectRef`,
+  `responseStatus.code` ≥ 400 → `failure`), `from_m365` (Microsoft 365 Unified Audit Log —
+  `Operation`/`ResultStatus`/`ClientIP`), and `from_cloudflare` (`actor`/`action`/`resource`
+  objects, `action.result` false → `failure`).
+- `detect_source` (and `normalize_auto`, the CLI `--source`/`--auto`) now recognize all three,
+  so mixed batches that include Kubernetes, M365, or Cloudflare records normalize automatically.
+
 ## [0.2.0]
 
 ### Added

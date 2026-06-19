@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "auditnorm"
-version = "0.2.0"
-description = "Normalize audit logs from ServiceNow, AWS, Okta, Splunk, GCP, Azure, and GitHub into one common schema, with source auto-detection."
+version = "0.3.0"
+description = "Normalize audit logs from ServiceNow, AWS, Okta, Splunk, GCP, Azure, GitHub, Kubernetes, Microsoft 365, and Cloudflare into one common schema, with source auto-detection."
 readme = "README.md"
 authors = [{ name = "Joshua John", email = "josh202@gmail.com" }]
 requires-python = ">=3.8"

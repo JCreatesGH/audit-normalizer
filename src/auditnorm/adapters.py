@@ -113,10 +113,68 @@ def from_github(r: Dict[str, Any]) -> AuditEvent:
     )
 
 
+def from_kubernetes(r: Dict[str, Any]) -> AuditEvent:
+    """Kubernetes audit events (audit.k8s.io/v1)."""
+    user = r.get("user") or {}
+    ref = r.get("objectRef") or {}
+    resp = r.get("responseStatus") or {}
+    ips = r.get("sourceIPs") or []
+    resource = "/".join(p for p in (ref.get("namespace"), ref.get("resource"), ref.get("name")) if p)
+    code = resp.get("code")
+    if isinstance(code, int):
+        outcome = "failure" if code >= 400 else "success"
+    else:
+        outcome = "unknown"
+    return AuditEvent(
+        timestamp=parse_ts(r.get("requestReceivedTimestamp") or r.get("stageTimestamp")),
+        source_system="kubernetes",
+        actor=user.get("username", "unknown"),
+        action=normalize_action(r.get("verb", "")),
+        resource=resource or ref.get("resource", ""),
+        outcome=outcome,
+        source_ip=ips[0] if ips else None,
+        raw_action=str(r.get("verb", "")),
+    )
+
+
+def from_m365(r: Dict[str, Any]) -> AuditEvent:
+    """Microsoft 365 / Office 365 Unified Audit Log records."""
+    return AuditEvent(
+        timestamp=parse_ts(r.get("CreationTime")),
+        source_system="m365",
+        actor=r.get("UserId", "unknown"),
+        action=normalize_action(r.get("Operation", "")),
+        resource=r.get("ObjectId") or r.get("Workload", ""),
+        outcome=normalize_outcome(r.get("ResultStatus", "")),
+        source_ip=r.get("ClientIP") or r.get("ActorIpAddress"),
+        raw_action=str(r.get("Operation", "")),
+    )
+
+
+def from_cloudflare(r: Dict[str, Any]) -> AuditEvent:
+    """Cloudflare audit logs (actor/action/resource objects, `when` timestamp)."""
+    actor = r.get("actor") or {}
+    action = r.get("action") or {}
+    resource = r.get("resource") or {}
+    res = ":".join(p for p in (resource.get("type"), resource.get("id")) if p)
+    result = action.get("result", True)        # boolean; absent => assume success
+    return AuditEvent(
+        timestamp=parse_ts(r.get("when")),
+        source_system="cloudflare",
+        actor=actor.get("email") or actor.get("id", "unknown"),
+        action=normalize_action(action.get("type", "")),
+        resource=res or resource.get("type", ""),
+        outcome="success" if result else "failure",
+        source_ip=actor.get("ip"),
+        raw_action=str(action.get("type", "")),
+    )
+
+
 ADAPTERS: Dict[str, Callable[[Dict[str, Any]], AuditEvent]] = {
     "servicenow": from_servicenow, "aws": from_cloudtrail,
     "okta": from_okta, "splunk": from_splunk,
     "gcp": from_gcp, "azure": from_azure, "github": from_github,
+    "kubernetes": from_kubernetes, "m365": from_m365, "cloudflare": from_cloudflare,
 }
 
 
@@ -132,6 +190,12 @@ def detect_source(record: Dict[str, Any]) -> Optional[str]:
         return "aws"
     if "eventType" in r and "published" in r:
         return "okta"
+    if "CreationTime" in r and "Operation" in r:
+        return "m365"
+    if "requestReceivedTimestamp" in r or ("objectRef" in r and "verb" in r):
+        return "kubernetes"
+    if "when" in r and isinstance(r.get("action"), dict):
+        return "cloudflare"
     if "sys_created_on" in r or "sys_updated_on" in r:
         return "servicenow"
     if "action" in r and "actor" in r and ("@timestamp" in r or "created_at" in r):
